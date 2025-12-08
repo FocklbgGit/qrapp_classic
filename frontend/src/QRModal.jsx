@@ -1,98 +1,22 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 
 export default function QRModal({ customer, onClose }) {
   if (!customer) return null;
 
-  const qrDisplayRef = useRef(null);
-  const qrDownloadRef = useRef(null);
+  // Hard-coded redirect host – this is what we WANT
+  const BACKEND = "https://oilqr.com";
 
-  const BACKEND = import.meta.env.VITE_API_BASE_URL; // API Base
-  const [redirectBase, setRedirectBase] = useState("");
+  const qrCanvasRef = useRef(null);
 
-  // Border + UI settings
   const [showBorder, setShowBorder] = useState(true);
-  const [padding, setPadding] = useState(6);
+  const [padding, setPadding] = useState(4);
   const [lineWidth, setLineWidth] = useState(3);
   const [showLogo, setShowLogo] = useState(true);
 
   const logoUrl = "https://cdn-icons-png.flaticon.com/512/743/743131.png";
   const logoSize = 60;
 
-  // ============================================================
-  // Fetch redirect base_url (RESTORES OLD WORKING BEHAVIOR)
-  // ============================================================
-  useEffect(() => {
-    fetch("/api/base_url")
-      .then((res) => res.json())
-      .then((data) => setRedirectBase(data.base_url))
-      .catch(() => {
-        // fallback: use primary Vercel domain
-        setRedirectBase("https://oilqr.com");
-      });
-  }, []);
-
-  // ============================================================
-  // QR VALUES
-  // ============================================================
-
-  // Visible QR in bubble → customer website
-  const displayValue = customer.qr_url || "";
-
-  // Hidden QR for download + scanning
-  const redirectValue = customer.redirect_code
-    ? `${redirectBase}/r/${customer.redirect_code}`
-    : customer.qr_url;
-
-  // ============================================================
-  // Draw border around QR Canvas
-  // ============================================================
-  const drawBorder = (canvas) => {
-    if (!canvas || !showBorder) return;
-
-    const ctx = canvas.getContext("2d");
-    const size = canvas.width;
-    const inset = padding;
-
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = lineWidth;
-    ctx.strokeRect(inset, inset, size - inset * 2, size - inset * 2);
-  };
-
-  // ============================================================
-  // Download PNG QR (uses hidden redirect QR)
-  // ============================================================
-  const handleDownload = () => {
-    const canvas = qrDownloadRef.current?.querySelector("canvas");
-    if (!canvas) {
-      alert("QR code not ready — try again.");
-      return;
-    }
-
-    // Add border to downloaded QR
-    if (showBorder) drawBorder(canvas);
-
-    const fileBase =
-      customer.company?.trim() ||
-      customer.company_name?.trim() ||
-      customer.last_name?.trim() ||
-      "customer";
-
-    const pngUrl = canvas
-      .toDataURL("image/png")
-      .replace("image/png", "image/octet-stream");
-
-    const link = document.createElement("a");
-    link.href = pngUrl;
-    link.download = `${fileBase}_QR.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // ============================================================
-  // Extract domain for labeling inside bubble
-  // ============================================================
   const extractDomain = (url) => {
     try {
       const { hostname } = new URL(url || "");
@@ -102,176 +26,192 @@ export default function QRModal({ customer, onClose }) {
     }
   };
 
-  const domain = extractDomain(customer.qr_url);
+  // This is just for showing under the QR
+  const domain = extractDomain(customer.url);
 
-  // ============================================================
-  // Merged UI + QR Rendering
-  // ============================================================
+  // 👇 THIS is the URL actually encoded into the QR
+  // It will ALWAYS be https://oilqr.com/r/<code>
+  const qrValue = `${BACKEND}/r/${customer.code}`;
+
+  const handleDownload = () => {
+    const qrCanvas = qrCanvasRef.current?.querySelector("canvas");
+    if (!qrCanvas) return;
+
+    const logo = new Image();
+    logo.crossOrigin = "anonymous";
+    logo.src = logoUrl;
+
+    logo.onload = () => {
+      const qrSize = qrCanvas.width;
+      const pad = showBorder ? padding : 0;
+      const border = showBorder ? lineWidth : 0;
+      const final = qrSize + pad * 2 + border * 2;
+
+      const out = document.createElement("canvas");
+      out.width = final;
+      out.height = final;
+
+      const ctx = out.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, final, final);
+
+      if (showBorder) {
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = border;
+        ctx.strokeRect(
+          border / 2,
+          border / 2,
+          final - border,
+          final - border
+        );
+      }
+
+      ctx.drawImage(qrCanvas, border + pad, border + pad);
+
+      if (showLogo) {
+        const x = (final - logoSize) / 2;
+        const y = (final - logoSize) / 2;
+        ctx.drawImage(logo, x, y, logoSize, logoSize);
+      }
+
+      const link = document.createElement("a");
+      link.download = `${customer.code}_QR.png`;
+      link.href = out.toDataURL("image/png");
+      link.click();
+    };
+  };
+
+  const NumberControl = ({ label, value, onChange }) => (
+    <div style={{ marginBottom: 8 }}>
+      <strong>{label}</strong>
+      <input
+        type="number"
+        value={value}
+        style={{ width: 60, marginLeft: 8 }}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </div>
+  );
+
   return (
-    <div style={overlayStyle}>
-      <div style={modalStyle}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+    >
+      <div
+        style={{
+          background: "white",
+          padding: 20,
+          borderRadius: 10,
+          width: 380,
+          textAlign: "center",
+        }}
+      >
+        <h2>QR Code for {domain}</h2>
 
-        <h3 style={{ textAlign: "center", marginBottom: 10 }}>
-          QR Code for {customer.first_name}
-        </h3>
+        <label>
+          <input
+            type="checkbox"
+            checked={showBorder}
+            onChange={() => setShowBorder(!showBorder)}
+          />{" "}
+          Add Border
+        </label>
+        <br />
+        <label>
+          <input
+            type="checkbox"
+            checked={showLogo}
+            onChange={() => setShowLogo(!showLogo)}
+          />{" "}
+          Show Logo
+        </label>
 
-        {/* =======================================================
-            Visible QR (customer URL)
-        ======================================================== */}
+        <div style={{ marginTop: 10 }}>
+          <NumberControl
+            label="Padding:"
+            value={padding}
+            onChange={setPadding}
+          />
+          <NumberControl
+            label="Border Width:"
+            value={lineWidth}
+            onChange={setLineWidth}
+          />
+        </div>
+
         <div
-          ref={qrDisplayRef}
-          style={{ textAlign: "center", marginBottom: 30 }}
+          ref={qrCanvasRef}
+          style={{
+            position: "relative",
+            padding: showBorder ? padding : 0,
+            border: showBorder ? `${lineWidth}px solid black` : "none",
+            borderRadius: 10,
+            display: "inline-block",
+            background: "#fff",
+            marginTop: 10,
+          }}
         >
           <QRCodeCanvas
-            value={displayValue}
+            value={qrValue}
             size={260}
             level="H"
-            includeMargin={true}
-            imageSettings={
-              showLogo
-                ? {
-                    src: logoUrl,
-                    height: logoSize,
-                    width: logoSize,
-                    excavate: true,
-                  }
-                : null
-            }
-            onLoad={(canvas) => showBorder && drawBorder(canvas)}
+            includeMargin={false}
           />
-          <p style={{ fontSize: 12, marginTop: 6 }}>{domain}</p>
+
+          {showLogo && (
+            <img
+              src={logoUrl}
+              alt="logo"
+              style={{
+                position: "absolute",
+                width: logoSize,
+                height: logoSize,
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                pointerEvents: "none",
+              }}
+            />
+          )}
         </div>
 
-        {/* =======================================================
-            Hidden download QR (redirect)
-        ======================================================== */}
-        <div ref={qrDownloadRef} style={{ display: "none" }}>
-          <QRCodeCanvas
-            value={redirectValue}
-            size={300}
-            level="H"
-            includeMargin={true}
-            imageSettings={
-              showLogo
-                ? {
-                    src: logoUrl,
-                    height: logoSize,
-                    width: logoSize,
-                    excavate: true,
-                  }
-                : null
-            }
-          />
-        </div>
+        <div style={{ marginTop: 10, fontSize: 12 }}>{domain}</div>
 
-        {/* =======================================================
-            Options
-        ======================================================== */}
-        <div style={{ marginBottom: 20 }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={showBorder}
-              onChange={() => setShowBorder(!showBorder)}
-            />
-            &nbsp; Show Border
-          </label>
+        <button
+          onClick={handleDownload}
+          style={{
+            background: "#007BFF",
+            color: "white",
+            padding: "10px 14px",
+            borderRadius: 6,
+            marginTop: 15,
+            cursor: "pointer",
+          }}
+        >
+          Download QR PNG
+        </button>
 
-          <br />
-
-          <label>
-            Padding:
-            <input
-              type="number"
-              min="0"
-              max="20"
-              value={padding}
-              onChange={(e) => setPadding(Number(e.target.value))}
-              style={{ width: 60, marginLeft: 8 }}
-            />
-          </label>
-
-          <br />
-
-          <label>
-            Line Width:
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={lineWidth}
-              onChange={(e) => setLineWidth(Number(e.target.value))}
-              style={{ width: 60, marginLeft: 8 }}
-            />
-          </label>
-
-          <br />
-
-          <label>
-            <input
-              type="checkbox"
-              checked={showLogo}
-              onChange={() => setShowLogo(!showLogo)}
-            />
-            &nbsp; Show Logo
-          </label>
-        </div>
-
-        {/* =======================================================
-            Buttons
-        ======================================================== */}
-        <div style={{ textAlign: "center" }}>
-          <button style={btnPrimary} onClick={handleDownload}>
-            ⬇ Download QR
-          </button>
-          <button style={btnClose} onClick={onClose}>
-            ✖ Close
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          style={{
+            background: "#eee",
+            padding: "10px 14px",
+            borderRadius: 6,
+            marginLeft: 10,
+            cursor: "pointer",
+          }}
+        >
+          Close
+        </button>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// Styles
-// ============================================================
-
-const overlayStyle = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "rgba(0,0,0,0.4)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  zIndex: 2000,
-};
-
-const modalStyle = {
-  width: 340,
-  background: "#fff",
-  padding: 20,
-  borderRadius: 12,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-};
-
-const btnPrimary = {
-  padding: "8px 14px",
-  background: "#007bff",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-  marginRight: 8,
-};
-
-const btnClose = {
-  padding: "8px 14px",
-  background: "#ccc",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-};
