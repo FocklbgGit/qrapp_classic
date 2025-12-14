@@ -47,7 +47,7 @@ def get_base_url():
     lan_ip = socket.gethostbyname(hostname)
 
     # ALWAYS return LAN IP for dynamic QR codes
-    base_url = f"http://{lan_ip}:8000"
+    base_url = f"http://{lan_ip}:5000"
     print(">>> BASE URL SERVED TO FRONTEND:", base_url)
 
     return {"base_url": base_url}
@@ -99,7 +99,7 @@ def customers():
         # =====================================================
         hostname = socket.gethostname()
         lan_ip = socket.gethostbyname(hostname)
-        redirect_link = f"http://{lan_ip}:8000/r/{redirect_code}"
+        redirect_link = f"http://{lan_ip}:5000/r/{redirect_code}"
 
         qr_img = qrcode.make(redirect_link)
         buffer = io.BytesIO()
@@ -215,4 +215,4 @@ def redirect_qr(code):
 # =========================================================
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=8000)
+    app.run(debug=True, host="0.0.0.0", port=5000)

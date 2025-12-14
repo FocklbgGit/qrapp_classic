@@ -3,16 +3,16 @@ import { QRCodeCanvas } from "qrcode.react";
 import EditModal from "./EditModal";
 import QRModal from "./QRModal";
 
+// -------------------------------------------------------------
+// BACKEND API — DO NOT CHANGE
+// This is where your customer database actually lives
+// -------------------------------------------------------------
+const BACKEND_API = "https://oilqr.com";
+
 export default function App() {
-
-  // STATIC backend URL – always correct for classic QR app
-  const [baseUrl] = useState("http://localhost:8000");
-
-  // Load customers on startup
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Form fields
   const [companyName, setCompanyName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -22,24 +22,37 @@ export default function App() {
   const [qrValue, setQrValue] = useState("");
   const [message, setMessage] = useState("");
 
-  // Modals
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [selectedQR, setSelectedQR] = useState(null);
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  // ---- Fetch Customers ----
+  // -------------------------------------------------------------
+  // HELPER: ENSURE URL HAS PROTOCOL
+  // -------------------------------------------------------------
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    const trimmed = url.trim();
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      return "https://" + trimmed;
+    }
+    return trimmed;
+  };
+
+  // -------------------------------------------------------------
+  // FETCH CUSTOMERS
+  // -------------------------------------------------------------
   const fetchCustomers = async () => {
     try {
-      const response = await fetch(`${baseUrl}/api/customers`);
+      const response = await fetch(`${BACKEND_API}/api/customers`);
       const data = await response.json();
       setCustomers(data);
     } catch (err) {
-      console.error("Error fetching customers:", err);
+      console.error("Fetch customers error:", err);
     }
   };
 
@@ -47,25 +60,35 @@ export default function App() {
     fetchCustomers();
   }, []);
 
-  // ---- QR Generation ----
+  const clearOnType = () => setMessage("");
+
+  // -------------------------------------------------------------
+  // GENERATE LOCAL QR PREVIEW
+  // -------------------------------------------------------------
   const generateQR = () => {
     if (!qrUrl) {
-      setMessage("Please enter a URL before generating a QR code.");
+      setMessage("Enter a URL first.");
       return;
     }
-    setQrValue(qrUrl);
-    setMessage("");
+    // Add https:// for preview too
+    const validUrl = ensureProtocol(qrUrl);
+    setQrValue(validUrl);
   };
 
-  // ---- Save New Customer ----
+  // -------------------------------------------------------------
+  // SAVE CUSTOMER (CREATE)
+  // -------------------------------------------------------------
   const saveCustomer = async () => {
     if (!firstName || !qrUrl) {
-      setMessage("Please enter at least a first name and a QR URL.");
+      setMessage("Must enter first name and QR URL.");
       return;
     }
 
+    // Ensure URL has protocol before saving
+    const validUrl = ensureProtocol(qrUrl);
+
     try {
-      const response = await fetch(`${baseUrl}/api/customers`, {
+      const response = await fetch(`${BACKEND_API}/api/customers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -74,12 +97,14 @@ export default function App() {
           last_name: lastName.trim(),
           email: email.trim(),
           phone_number: phone.trim(),
-          qr_url: qrUrl.trim(),
+          qr_url: validUrl,
         }),
       });
 
       if (response.ok) {
-        setMessage("✅ Customer saved successfully!");
+        await fetchCustomers();
+
+        setMessage("Customer saved.");
         setCompanyName("");
         setFirstName("");
         setLastName("");
@@ -87,56 +112,67 @@ export default function App() {
         setPhone("");
         setQrUrl("");
         setQrValue("");
-
-        fetchCustomers();
       } else {
-        const error = await response.json();
-        setMessage("❌ Error: " + error.error);
+        const err = await response.json();
+        setMessage("Error: " + err.error);
       }
     } catch (err) {
-      setMessage("❌ Server error: " + err.message);
+      setMessage("Save error: " + err.message);
     }
   };
 
-  // ---- Edit / Update ----
+  // -------------------------------------------------------------
+  // OPEN EDIT MODAL
+  // -------------------------------------------------------------
   const handleEdit = (cust) => {
     setSelectedCustomer(cust);
     setEditModalOpen(true);
   };
 
+  // -------------------------------------------------------------
+  // UPDATE CUSTOMER (redirect_code NEVER sent)
+  // -------------------------------------------------------------
   const handleUpdate = async (updatedData) => {
     try {
-      const response = await fetch(`${baseUrl}/api/customers/${updatedData.id}`, {
+      const { redirect_code, ...safe } = updatedData;
+
+      // Ensure URL has protocol
+      if (safe.qr_url) {
+        safe.qr_url = ensureProtocol(safe.qr_url);
+      }
+
+      await fetch(`${BACKEND_API}/api/customers/${updatedData.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
+        body: JSON.stringify(safe),
       });
 
-      if (response.ok) {
-        setMessage("✅ Customer updated successfully!");
-        fetchCustomers();
-        setEditModalOpen(false);
-      }
+      await fetchCustomers();
+      setEditModalOpen(false);
     } catch (err) {
-      setMessage("❌ Server error: " + err.message);
+      setMessage("Update error: " + err.message);
     }
   };
 
-  // ---- Delete ----
+  // -------------------------------------------------------------
+  // DELETE CUSTOMER
+  // -------------------------------------------------------------
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this customer?")) return;
+    if (!window.confirm("Delete this customer?")) return;
 
     try {
-      await fetch(`${baseUrl}/api/customers/${id}`, { method: "DELETE" });
-      setMessage("🗑 Customer deleted successfully!");
-      fetchCustomers();
+      await fetch(`${BACKEND_API}/api/customers/${id}`, { method: "DELETE" });
+      await fetchCustomers();
+      setEditModalOpen(false);
     } catch (err) {
-      setMessage("❌ Server error: " + err.message);
+      setMessage("Delete error: " + err.message);
     }
   };
 
-  // ---- Search ----
-  const filteredCustomers = customers.filter((cust) =>
+  // -------------------------------------------------------------
+  // FILTER + PAGINATION
+  // -------------------------------------------------------------
+  const filtered = customers.filter((cust) =>
     [
       cust.first_name,
       cust.last_name,
@@ -149,67 +185,131 @@ export default function App() {
       .includes(searchTerm.toLowerCase())
   );
 
-  // ---- Pagination ----
-  const totalPages = Math.ceil(filteredCustomers.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const displayedCustomers = filteredCustomers.slice(
-    startIndex,
-    startIndex + pageSize
-  );
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const start = (currentPage - 1) * pageSize;
+  const pageData = filtered.slice(start, start + pageSize);
 
-  const handlePageChange = (direction) => {
-    if (direction === "prev" && currentPage > 1) setCurrentPage(currentPage - 1);
-    if (direction === "next" && currentPage < totalPages) setCurrentPage(currentPage + 1);
+  const handlePage = (dir) => {
+    if (dir === "prev" && currentPage > 1) setCurrentPage(currentPage - 1);
+    if (dir === "next" && currentPage < totalPages)
+      setCurrentPage(currentPage + 1);
   };
 
-  // ---- QR Modal ----
+  // -------------------------------------------------------------
+  // OPEN QR MODAL
+  // -------------------------------------------------------------
   const handleShowQR = (cust) => {
     setSelectedQR(cust);
     setQrModalOpen(true);
   };
 
+  // -------------------------------------------------------------
+  // RENDER
+  // -------------------------------------------------------------
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", textAlign: "center" }}>
-      <h1>QR Code Generator & Customer Management</h1>
+      <h1>QR Code Generator</h1>
 
-      {/* Form */}
+      {/* FORM */}
       <div style={{ marginBottom: 20 }}>
-        <input type="text" placeholder="Company Name"
-          value={companyName} onChange={(e) => setCompanyName(e.target.value)}
-          style={{ width: "80%", padding: 8, marginBottom: 8 }} />
-        <br />
-        <input type="text" placeholder="First Name"
-          value={firstName} onChange={(e) => setFirstName(e.target.value)}
-          style={{ width: "80%", padding: 8, marginBottom: 8 }} />
-        <br />
-        <input type="text" placeholder="Last Name"
-          value={lastName} onChange={(e) => setLastName(e.target.value)}
-          style={{ width: "80%", padding: 8, marginBottom: 8 }} />
-        <br />
-        <input type="email" placeholder="Email Address"
-          value={email} onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "80%", padding: 8, marginBottom: 8 }} />
-        <br />
-        <input type="tel" placeholder="Phone Number"
-          value={phone} onChange={(e) => setPhone(e.target.value)}
-          style={{ width: "80%", padding: 8, marginBottom: 8 }} />
-        <br />
-        <input type="text" placeholder="Enter URL for QR code"
-          value={qrUrl} onChange={(e) => setQrUrl(e.target.value)}
-          style={{ width: "80%", padding: 8, marginBottom: 8 }} />
+        <input
+          type="text"
+          placeholder="Company Name"
+          value={companyName}
+          onChange={(e) => {
+            clearOnType();
+            setCompanyName(e.target.value);
+          }}
+          style={{ width: "80%", padding: 8, marginBottom: 8 }}
+        />
+        <input
+          type="text"
+          placeholder="First Name *"
+          value={firstName}
+          onChange={(e) => {
+            clearOnType();
+            setFirstName(e.target.value);
+          }}
+          style={{ width: "80%", padding: 8, marginBottom: 8 }}
+        />
+        <input
+          type="text"
+          placeholder="Last Name"
+          value={lastName}
+          onChange={(e) => {
+            clearOnType();
+            setLastName(e.target.value);
+          }}
+          style={{ width: "80%", padding: 8, marginBottom: 8 }}
+        />
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => {
+            clearOnType();
+            setEmail(e.target.value);
+          }}
+          style={{ width: "80%", padding: 8, marginBottom: 8 }}
+        />
+        <input
+          type="tel"
+          placeholder="Phone"
+          value={phone}
+          onChange={(e) => {
+            clearOnType();
+            setPhone(e.target.value);
+          }}
+          style={{ width: "80%", padding: 8, marginBottom: 8 }}
+        />
+        <input
+          type="text"
+          placeholder="Enter QR Redirect URL * (e.g., example.com)"
+          value={qrUrl}
+          onChange={(e) => {
+            clearOnType();
+            setQrUrl(e.target.value);
+          }}
+          style={{ width: "80%", padding: 8, marginBottom: 8 }}
+        />
+        <div style={{ fontSize: 12, color: "#666", marginTop: -4, marginBottom: 8 }}>
+          You can enter just "example.com" - https:// will be added automatically
+        </div>
       </div>
 
-      {/* Buttons */}
+      {/* ACTIONS */}
       <div style={{ marginBottom: 20 }}>
-        <button onClick={generateQR} style={{ padding: "8px 20px", marginRight: 10 }}>
+        <button
+          onClick={generateQR}
+          style={{
+            padding: "8px 20px",
+            background: "#239f07",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            marginRight: 10,
+            cursor: "pointer",
+          }}
+        >
           Generate QR
         </button>
-        <button onClick={saveCustomer} style={{ padding: "8px 20px" }}>
+
+        <button
+          onClick={saveCustomer}
+          style={{
+            padding: "8px 20px",
+            background: "#3e53f6",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
           Save Customer
         </button>
       </div>
 
-      {/* QR Display */}
+      {/* QR PREVIEW */}
       {qrValue && (
         <div style={{ marginTop: 20 }}>
           <QRCodeCanvas value={qrValue} size={200} />
@@ -217,90 +317,80 @@ export default function App() {
         </div>
       )}
 
-      {/* Message */}
-      {message && <p style={{ marginTop: 20 }}>{message}</p>}
+      {message && <p>{message}</p>}
 
-      {/* Search */}
+      {/* SEARCH */}
       <div style={{ margin: "20px 0" }}>
         <input
           type="text"
-          placeholder="Search customers..."
+          placeholder="Search customers…"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{ width: "60%", padding: 8 }}
         />
       </div>
 
-      {/* Customer Table */}
-      <h2>Customer List</h2>
+      {/* CUSTOMER LIST */}
       <table style={{ width: "95%", margin: "0 auto", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ background: "#f2f2f2" }}>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>Company</th>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>First Name</th>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>Last Name</th>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>Email</th>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>Phone</th>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>QR URL</th>
-            <th style={{ padding: 8, border: "1px solid #ddd" }}>Actions</th>
+            <th style={thStyle}>Company</th>
+            <th style={thStyle}>First</th>
+            <th style={thStyle}>Last</th>
+            <th style={thStyle}>Email</th>
+            <th style={thStyle}>Phone</th>
+            <th style={thStyle}>QR URL</th>
+            <th style={thStyle}>Actions</th>
           </tr>
         </thead>
 
         <tbody>
-          {displayedCustomers.map((cust) => (
+          {pageData.map((cust) => (
             <tr key={cust.id}>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>{cust.company_name}</td>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>{cust.first_name}</td>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>{cust.last_name}</td>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>{cust.email}</td>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>{cust.phone_number}</td>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>{cust.qr_url}</td>
-              <td style={{ padding: 8, border: "1px solid #ddd" }}>
-                <button onClick={() => handleEdit(cust)} style={{ marginRight: 5 }}>
+              <td style={tdStyle}>{cust.company_name}</td>
+              <td style={tdStyle}>{cust.first_name}</td>
+              <td style={tdStyle}>{cust.last_name}</td>
+              <td style={tdStyle}>{cust.email}</td>
+              <td style={tdStyle}>{cust.phone_number}</td>
+              <td style={tdStyle}>{cust.qr_url}</td>
+
+              <td style={tdStyle}>
+                <button
+                  onClick={() => handleEdit(cust)}
+                  style={{ marginRight: 5 }}
+                >
                   Edit
                 </button>
-                <button onClick={() => handleShowQR(cust)}>
-                  QR
-                </button>
+
+                <button onClick={() => handleShowQR(cust)}>QR</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Pagination */}
+      {/* PAGINATION */}
       <div style={{ marginTop: 20 }}>
-        <label>
-          Rows per page:
-          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
-            <option value={5}>5</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-          </select>
-        </label>
+        <button
+          onClick={() => handlePage("prev")}
+          disabled={currentPage === 1}
+          style={{ marginRight: 10 }}
+        >
+          ← Prev
+        </button>
 
-        <div style={{ marginTop: 10 }}>
-          <button
-            onClick={() => handlePageChange("prev")}
-            disabled={currentPage === 1}
-            style={{ marginRight: 10 }}
-          >
-            ← Previous
-          </button>
+        Page {currentPage} of {totalPages || 1}
 
-            Page {currentPage} of {totalPages || 1}
-
-          <button
-            onClick={() => handlePageChange("next")}
-            disabled={currentPage === totalPages || totalPages === 0}
-            style={{ marginLeft: 10 }}
-          >
-            Next →
-          </button>
-        </div>
+        <button
+          onClick={() => handlePage("next")}
+          disabled={currentPage === totalPages || totalPages === 0}
+          style={{ marginLeft: 10 }}
+        >
+          Next →
+        </button>
       </div>
 
-      {/* Edit Modal */}
+      {/* EDIT MODAL */}
       {editModalOpen && selectedCustomer && (
         <EditModal
           customer={selectedCustomer}
@@ -310,13 +400,14 @@ export default function App() {
         />
       )}
 
-      {/* QR Modal */}
+      {/* QR MODAL */}
       {qrModalOpen && selectedQR && (
-        <QRModal
-          customer={selectedQR}
-          onClose={() => setQrModalOpen(false)}
-        />
+        <QRModal customer={selectedQR} onClose={() => setQrModalOpen(false)} />
       )}
     </div>
   );
 }
+
+// TABLE STYLES
+const thStyle = { padding: 8, border: "1px solid #ddd" };
+const tdStyle = { padding: 8, border: "1px solid #ddd" };

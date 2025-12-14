@@ -1,21 +1,47 @@
 import React, { useState, useEffect } from "react";
 
 export default function EditModal({ customer, onClose, onSave, onDelete }) {
-  const [formData, setFormData] = useState({ ...customer });
+  const stripRedirect = (obj) => {
+    const { redirect_code, ...safe } = obj;
+    return safe;
+  };
+
+  const [formData, setFormData] = useState(stripRedirect(customer));
+  const [showMessage, setShowMessage] = useState("");
 
   useEffect(() => {
-    setFormData({ ...customer });
+    setFormData(stripRedirect(customer));
   }, [customer]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    setShowMessage("");
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = async () => {
+    const safeData = stripRedirect(formData);
+    await onSave(safeData);
+    setShowMessage("Changes saved successfully.");
+  };
+
+  const handleCancel = () => {
+    setFormData(stripRedirect(customer));
+    setShowMessage("");
   };
 
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
+        <button onClick={onClose} style={closeButtonStyle}>✖</button>
+
         <h2>Edit Customer</h2>
+
+        {showMessage && (
+          <div style={{ color: "green", marginBottom: 10 }}>
+            {showMessage}
+          </div>
+        )}
 
         <input
           name="company_name"
@@ -24,6 +50,7 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
           placeholder="Company Name"
           style={inputStyle}
         />
+
         <input
           name="first_name"
           value={formData.first_name || ""}
@@ -31,6 +58,7 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
           placeholder="First Name"
           style={inputStyle}
         />
+
         <input
           name="last_name"
           value={formData.last_name || ""}
@@ -38,6 +66,7 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
           placeholder="Last Name"
           style={inputStyle}
         />
+
         <input
           name="email"
           value={formData.email || ""}
@@ -45,6 +74,7 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
           placeholder="Email"
           style={inputStyle}
         />
+
         <input
           name="phone_number"
           value={formData.phone_number || ""}
@@ -52,6 +82,7 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
           placeholder="Phone Number"
           style={inputStyle}
         />
+
         <input
           name="qr_url"
           value={formData.qr_url || ""}
@@ -62,21 +93,24 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
 
         <div style={{ marginTop: 20, textAlign: "center" }}>
           <button
-            onClick={() => onSave(formData)}
-            style={{ ...btnStyle, background: "#007bff", color: "#fff" }}
+            onClick={handleSave}
+            style={{ ...btnStyle, background: "#3e53f6", color: "#fff" }}
           >
             💾 Save Changes
           </button>
 
           <button
-            onClick={() => onDelete(formData.id)}
+            onClick={() => onDelete(customer.id)}
             style={{ ...btnStyle, background: "#dc3545", color: "#fff" }}
           >
             🗑 Delete Record
           </button>
 
-          <button onClick={onClose} style={{ ...btnStyle, background: "#ccc" }}>
-            ✖ Cancel
+          <button
+            onClick={handleCancel}
+            style={{ ...btnStyle, background: "#ccc" }}
+          >
+            Cancel
           </button>
         </div>
       </div>
@@ -84,7 +118,6 @@ export default function EditModal({ customer, onClose, onSave, onDelete }) {
   );
 }
 
-// --- Inline styles ---
 const overlayStyle = {
   position: "fixed",
   top: 0,
@@ -99,12 +132,29 @@ const overlayStyle = {
 };
 
 const modalStyle = {
+  position: "relative",
   background: "#fff",
   padding: 20,
   borderRadius: 10,
   width: 400,
   boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
   textAlign: "left",
+};
+
+const closeButtonStyle = {
+  position: "absolute",
+  top: 10,
+  right: 10,
+  background: "#dc3545",
+  color: "#fff",
+  border: "none",
+  borderRadius: "50%",
+  width: 24,
+  height: 24,
+  cursor: "pointer",
+  fontSize: 14,
+  lineHeight: "24px",
+  textAlign: "center",
 };
 
 const inputStyle = {
@@ -122,3 +172,4 @@ const btnStyle = {
   borderRadius: 5,
   cursor: "pointer",
 };
+
