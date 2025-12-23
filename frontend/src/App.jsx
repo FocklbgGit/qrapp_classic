@@ -6,6 +6,8 @@ import CompanyModal from "./CompanyModal";
 
 // -------------------------------------------------------------
 // BACKEND API — PRODUCTION
+// https://oilqr.com is the permanent production URL
+// NEVER change this to an IP address
 // -------------------------------------------------------------
 const API_BASE = "https://oilqr.com";
 
@@ -73,6 +75,7 @@ export default function App() {
       setMessage("Enter a URL first.");
       return;
     }
+    // Add https:// for preview too
     const validUrl = ensureProtocol(qrUrl);
     setQrValue(validUrl);
   };
@@ -86,6 +89,7 @@ export default function App() {
       return;
     }
 
+    // Ensure URL has protocol before saving
     const validUrl = ensureProtocol(qrUrl);
 
     try {
@@ -137,6 +141,7 @@ export default function App() {
     try {
       const { redirect_code, ...safe } = updatedData;
 
+      // Ensure URL has protocol
       if (safe.qr_url) {
         safe.qr_url = ensureProtocol(safe.qr_url);
       }
@@ -195,7 +200,7 @@ export default function App() {
       setCurrentPage(currentPage + 1);
   };
 
-  // -------------------------------------------------------------
+    // -------------------------------------------------------------
   // OPEN COMPANY MODAL
   // -------------------------------------------------------------
   const handleShowCompany = (cust) => {
@@ -421,7 +426,6 @@ export default function App() {
       {qrModalOpen && selectedQR && (
         <QRModal customer={selectedQR} onClose={() => setQrModalOpen(false)} />
       )}
-
       {/* COMPANY MODAL */}
       {companyModalOpen && selectedCompany && (
         <CompanyModal 
@@ -429,7 +433,7 @@ export default function App() {
           onClose={() => {
             setCompanyModalOpen(false);
             fetchCustomers();
-          }}
+}}
           onOpenQR={(qr) => {
             setCompanyModalOpen(false);
             setSelectedQR({...selectedCompany, ...qr});

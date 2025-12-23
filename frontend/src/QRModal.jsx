@@ -3,6 +3,11 @@ import React, { useRef, useEffect, useState } from "react";
 export default function QRModal({ customer, onClose }) {
   if (!customer) return null;
 
+  // -------------------------------------------------------------
+  // BACKEND API — PRODUCTION
+  // https://oilqr.com is the permanent production URL
+  // NEVER change this to an IP address
+  // -------------------------------------------------------------
   const API_BASE = "https://oilqr.com";
   const canvasRef = useRef(null);
   const [qrInstance, setQrInstance] = useState(null);
@@ -34,11 +39,22 @@ export default function QRModal({ customer, onClose }) {
   // Download quality
   const [downloadQuality, setDownloadQuality] = useState("standard");
 
-  // Save/Load designs
+  // ========== SAVE/LOAD STATE ==========
   const [savedDesigns, setSavedDesigns] = useState([]);
-  const [designName, setDesignName] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
-  const [showSavedDesigns, setShowSavedDesigns] = useState(false);
+  const [designName, setDesignName] = useState('');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [loadingDesigns, setLoadingDesigns] = useState(false);
+
+  // Auto-enable padding with safe defaults when border is enabled
+  const handleBorderChange = (checked) => {
+    setBorderEnabled(checked);
+    if (checked && !paddingEnabled) {
+      setPaddingEnabled(true);
+      setPadding(15);
+    }
+  };
 
   const company = (customer.company_name || "").trim();
   const customerName = `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
@@ -57,15 +73,6 @@ export default function QRModal({ customer, onClose }) {
 
   const bottomText = extractDomain(customer.qr_url);
 
-  // Auto-enable padding with safe defaults when border is enabled
-  const handleBorderChange = (checked) => {
-    setBorderEnabled(checked);
-    if (checked && !paddingEnabled) {
-      setPaddingEnabled(true);
-      setPadding(15);
-    }
-  };
-
   const hexToRgb = (hex) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result ? {
@@ -82,14 +89,18 @@ export default function QRModal({ customer, onClose }) {
     }).join("");
   };
 
-  // Load saved designs on mount
+  // ========== LOAD DESIGNS ON MOUNT ==========
   useEffect(() => {
     if (customer.qr_id) {
-      loadSavedDesigns();
+      loadDesigns();
     }
   }, [customer.qr_id]);
 
-  const loadSavedDesigns = async () => {
+  // ========== LOAD DESIGNS FROM API ==========
+  const loadDesigns = async () => {
+    if (!customer.qr_id) return;
+    
+    setLoadingDesigns(true);
     try {
       const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`);
       if (response.ok) {
@@ -97,75 +108,99 @@ export default function QRModal({ customer, onClose }) {
         setSavedDesigns(designs);
       }
     } catch (error) {
-      console.error("Error loading designs:", error);
+      console.error('Error loading designs:', error);
     }
+    setLoadingDesigns(false);
   };
 
+  // ========== SAVE CURRENT DESIGN ==========
   const saveDesign = async () => {
+    if (!customer.qr_id) {
+      setSaveStatus('Error: No QR code ID');
+      return;
+    }
+    
     if (!designName.trim()) {
-      setSaveMessage("Enter a design name");
+      setSaveStatus('Please enter a design name');
       return;
     }
 
+    setSaveStatus('Saving...');
+    
     try {
+      const designData = {
+        design_name: designName.trim(),
+        qr_size: qrSize,
+        qr_color: qrColor,
+        border_enabled: borderEnabled,
+        border_width: borderWidth,
+        border_color: borderColor,
+        padding_enabled: paddingEnabled,
+        padding: padding,
+        padding_color: paddingColor,
+        corners_enabled: cornersEnabled,
+        corner_radius: cornerRadius,
+        download_quality: downloadQuality
+      };
+
       const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          design_name: designName.trim(),
-          qr_size: qrSize,
-          qr_color: qrColor,
-          border_enabled: borderEnabled,
-          border_width: borderWidth,
-          border_color: borderColor,
-          padding_enabled: paddingEnabled,
-          padding: padding,
-          padding_color: paddingColor,
-          corners_enabled: cornersEnabled,
-          corner_radius: cornerRadius,
-          download_quality: downloadQuality
-        })
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(designData)
       });
 
       if (response.ok) {
-        setSaveMessage("Design saved!");
-        setDesignName("");
-        loadSavedDesigns();
-        setTimeout(() => setSaveMessage(""), 2000);
+        setSaveStatus('✓ Saved!');
+        setDesignName('');
+        setShowSaveModal(false);
+        loadDesigns();
+        setTimeout(() => setSaveStatus(''), 2000);
       } else {
-        setSaveMessage("Error saving design");
+        setSaveStatus('Error saving design');
       }
     } catch (error) {
-      setSaveMessage("Error: " + error.message);
+      console.error('Error saving design:', error);
+      setSaveStatus('Error: ' + error.message);
     }
   };
 
-  const loadDesign = (design) => {
+  // ========== APPLY A SAVED DESIGN ==========
+  const applyDesign = (design) => {
     setQrSize(design.qr_size || 600);
-    setQrColor(design.qr_color || "#000000");
-    setQrHex(design.qr_color || "#000000");
+    setQrColor(design.qr_color || '#000000');
+    setQrHex(design.qr_color || '#000000');
     setBorderEnabled(design.border_enabled || false);
     setBorderWidth(design.border_width || 4);
-    setBorderColor(design.border_color || "#000000");
-    setBorderHex(design.border_color || "#000000");
+    setBorderColor(design.border_color || '#000000');
+    setBorderHex(design.border_color || '#000000');
     setPaddingEnabled(design.padding_enabled || false);
     setPadding(design.padding || 15);
-    setPaddingColor(design.padding_color || "#ffffff");
-    setPaddingHex(design.padding_color || "#ffffff");
+    setPaddingColor(design.padding_color || '#ffffff');
+    setPaddingHex(design.padding_color || '#ffffff');
     setCornersEnabled(design.corners_enabled || false);
     setCornerRadius(design.corner_radius || 20);
-    setDownloadQuality(design.download_quality || "standard");
-    setShowSavedDesigns(false);
+    setDownloadQuality(design.download_quality || 'standard');
+    setShowLoadModal(false);
+    setSaveStatus(`✓ Loaded: ${design.design_name}`);
+    setTimeout(() => setSaveStatus(''), 2000);
   };
 
-  const deleteDesign = async (designId) => {
-    if (!window.confirm("Delete this design?")) return;
-
+  // ========== DELETE A SAVED DESIGN ==========
+  const deleteDesign = async (designId, e) => {
+    e.stopPropagation();
+    
+    if (!window.confirm('Delete this saved design?')) return;
+    
     try {
-      await fetch(`${API_BASE}/api/designs/${designId}`, { method: "DELETE" });
-      loadSavedDesigns();
+      const response = await fetch(`${API_BASE}/api/designs/${designId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        loadDesigns();
+      }
     } catch (error) {
-      console.error("Error deleting design:", error);
+      console.error('Error deleting design:', error);
     }
   };
 
@@ -454,8 +489,62 @@ export default function QRModal({ customer, onClose }) {
         borderRadius: 10,
         width: 420,
         textAlign: "center",
+        maxHeight: "90vh",
+        overflowY: "auto"
       }}>
         <h2>{customer.label || customer.qr_label || displayName}</h2>
+
+        {/* STATUS MESSAGE */}
+        {saveStatus && (
+          <div style={{
+            padding: "8px 12px",
+            marginBottom: 10,
+            borderRadius: 4,
+            background: saveStatus.includes('Error') ? '#f8d7da' : '#d4edda',
+            color: saveStatus.includes('Error') ? '#721c24' : '#155724',
+            fontSize: 13
+          }}>
+            {saveStatus}
+          </div>
+        )}
+
+        {/* SAVE / LOAD BUTTONS */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 15 }}>
+          <button
+            onClick={() => setShowSaveModal(true)}
+            disabled={!customer.qr_id}
+            style={{
+              background: "#28a745",
+              color: "white",
+              padding: "8px 16px",
+              borderRadius: 6,
+              border: "none",
+              cursor: customer.qr_id ? "pointer" : "not-allowed",
+              fontSize: 13,
+              fontWeight: "bold",
+              opacity: customer.qr_id ? 1 : 0.5
+            }}
+          >
+            💾 Save Design
+          </button>
+          <button
+            onClick={() => { setShowLoadModal(true); loadDesigns(); }}
+            disabled={!customer.qr_id}
+            style={{
+              background: "#007bff",
+              color: "white",
+              padding: "8px 16px",
+              borderRadius: 6,
+              border: "none",
+              cursor: customer.qr_id ? "pointer" : "not-allowed",
+              fontSize: 13,
+              fontWeight: "bold",
+              opacity: customer.qr_id ? 1 : 0.5
+            }}
+          >
+            📂 Load ({savedDesigns.length})
+          </button>
+        </div>
 
         {/* CONTROLS */}
         <div style={{ marginBottom: 20, display: "flex", justifyContent: "center" }}>
@@ -547,61 +636,6 @@ export default function QRModal({ customer, onClose }) {
           </select>
         </div>
 
-        {/* SAVE/LOAD DESIGN SECTION */}
-        <div style={{ marginTop: 15, padding: 10, background: "#f5f5f5", borderRadius: 6 }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input
-              type="text"
-              placeholder="Design name..."
-              value={designName}
-              onChange={(e) => setDesignName(e.target.value)}
-              style={{ flex: 1, padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
-            />
-            <button
-              onClick={saveDesign}
-              style={{
-                background: "#28a745",
-                color: "white",
-                padding: "6px 12px",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-                fontWeight: "bold"
-              }}
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setShowSavedDesigns(!showSavedDesigns)}
-              style={{
-                background: "#3e53f6",
-                color: "white",
-                padding: "6px 12px",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer"
-              }}
-            >
-              Load ({savedDesigns.length})
-            </button>
-          </div>
-          {saveMessage && <div style={{ fontSize: 12, color: saveMessage.includes("Error") ? "red" : "green" }}>{saveMessage}</div>}
-          
-          {showSavedDesigns && savedDesigns.length > 0 && (
-            <div style={{ marginTop: 10, maxHeight: 150, overflowY: "auto", textAlign: "left" }}>
-              {savedDesigns.map(design => (
-                <div key={design.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "white", marginBottom: 4, borderRadius: 4, border: "1px solid #ddd" }}>
-                  <span style={{ fontSize: 13 }}>{design.design_name}</span>
-                  <div>
-                    <button onClick={() => loadDesign(design)} style={{ marginRight: 5, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>Load</button>
-                    <button onClick={() => deleteDesign(design.id)} style={{ padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "red" }}>×</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         <button
           onClick={handleDownload}
           style={{
@@ -632,6 +666,139 @@ export default function QRModal({ customer, onClose }) {
         >
           Close
         </button>
+
+        {/* ========== SAVE MODAL ========== */}
+        {showSaveModal && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10002
+          }} onClick={() => setShowSaveModal(false)}>
+            <div style={{
+              background: "white",
+              padding: 20,
+              borderRadius: 8,
+              width: 300,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+            }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ marginTop: 0 }}>Save Design</h3>
+              <input
+                type="text"
+                placeholder="Design name (e.g., 'Blue Logo')"
+                value={designName}
+                onChange={e => setDesignName(e.target.value)}
+                autoFocus
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  border: "1px solid #ccc",
+                  borderRadius: 4,
+                  fontSize: 14,
+                  marginBottom: 15,
+                  boxSizing: "border-box"
+                }}
+              />
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowSaveModal(false)}
+                  style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: 4, background: "white", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveDesign}
+                  style={{ padding: "8px 16px", border: "none", borderRadius: 4, background: "#28a745", color: "white", cursor: "pointer", fontWeight: "bold" }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========== LOAD MODAL ========== */}
+        {showLoadModal && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10002
+          }} onClick={() => setShowLoadModal(false)}>
+            <div style={{
+              background: "white",
+              padding: 20,
+              borderRadius: 8,
+              width: 350,
+              maxHeight: "70vh",
+              overflowY: "auto",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+            }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ marginTop: 0 }}>Load Saved Design</h3>
+              
+              {loadingDesigns ? (
+                <p>Loading...</p>
+              ) : savedDesigns.length === 0 ? (
+                <p style={{ color: "#666" }}>No saved designs yet. Save one first!</p>
+              ) : (
+                <div style={{ marginBottom: 15 }}>
+                  {savedDesigns.map(design => (
+                    <div
+                      key={design.id}
+                      onClick={() => applyDesign(design)}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: 12,
+                        border: "1px solid #eee",
+                        borderRadius: 6,
+                        marginBottom: 8,
+                        cursor: "pointer",
+                        transition: "background 0.2s"
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = "#f5f5f5"}
+                      onMouseOut={e => e.currentTarget.style.background = "white"}
+                    >
+                      <div style={{ textAlign: "left" }}>
+                        <strong>{design.design_name}</strong>
+                        <div style={{ fontSize: 11, color: "#888" }}>
+                          {design.qr_size}px • {design.qr_color} • {design.download_quality}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => deleteDesign(design.id, e)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: 16,
+                          opacity: 0.5
+                        }}
+                        title="Delete design"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <button
+                onClick={() => setShowLoadModal(false)}
+                style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: 4, background: "white", cursor: "pointer", width: "100%" }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

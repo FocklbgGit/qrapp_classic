@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from "react";
 
+// -------------------------------------------------------------
+// BACKEND API — PRODUCTION
+// https://oilqr.com is the permanent production URL
+// NEVER change this to an IP address
+// -------------------------------------------------------------
 const API_BASE = "https://oilqr.com";
-
 
 export default function CompanyModal({ customer, onClose, onOpenQR }) {
   const [qrCodes, setQrCodes] = useState([]);
