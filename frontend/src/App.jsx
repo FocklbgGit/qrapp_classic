@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import EditModal from "./EditModal";
 import QRModal from "./QRModal";
+import CompanyModal from "./CompanyModal";
 
 // -------------------------------------------------------------
-// BACKEND API — DO NOT CHANGE
-// This is where your customer database actually lives
+// BACKEND API — PRODUCTION
 // -------------------------------------------------------------
-const BACKEND_API = "https://oilqr.com";
+const API_BASE = "http://3.132.252.239:5000";
 
 export default function App() {
   const [customers, setCustomers] = useState([]);
@@ -27,6 +27,9 @@ export default function App() {
 
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [selectedQR, setSelectedQR] = useState(null);
+
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -48,7 +51,7 @@ export default function App() {
   // -------------------------------------------------------------
   const fetchCustomers = async () => {
     try {
-      const response = await fetch(`${BACKEND_API}/api/customers`);
+      const response = await fetch(`${API_BASE}/api/customers`);
       const data = await response.json();
       setCustomers(data);
     } catch (err) {
@@ -70,7 +73,6 @@ export default function App() {
       setMessage("Enter a URL first.");
       return;
     }
-    // Add https:// for preview too
     const validUrl = ensureProtocol(qrUrl);
     setQrValue(validUrl);
   };
@@ -84,11 +86,10 @@ export default function App() {
       return;
     }
 
-    // Ensure URL has protocol before saving
     const validUrl = ensureProtocol(qrUrl);
 
     try {
-      const response = await fetch(`${BACKEND_API}/api/customers`, {
+      const response = await fetch(`${API_BASE}/api/customers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -136,12 +137,11 @@ export default function App() {
     try {
       const { redirect_code, ...safe } = updatedData;
 
-      // Ensure URL has protocol
       if (safe.qr_url) {
         safe.qr_url = ensureProtocol(safe.qr_url);
       }
 
-      await fetch(`${BACKEND_API}/api/customers/${updatedData.id}`, {
+      await fetch(`${API_BASE}/api/customers/${updatedData.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(safe),
@@ -161,7 +161,7 @@ export default function App() {
     if (!window.confirm("Delete this customer?")) return;
 
     try {
-      await fetch(`${BACKEND_API}/api/customers/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/api/customers/${id}`, { method: "DELETE" });
       await fetchCustomers();
       setEditModalOpen(false);
     } catch (err) {
@@ -193,6 +193,14 @@ export default function App() {
     if (dir === "prev" && currentPage > 1) setCurrentPage(currentPage - 1);
     if (dir === "next" && currentPage < totalPages)
       setCurrentPage(currentPage + 1);
+  };
+
+  // -------------------------------------------------------------
+  // OPEN COMPANY MODAL
+  // -------------------------------------------------------------
+  const handleShowCompany = (cust) => {
+    setSelectedCompany(cust);
+    setCompanyModalOpen(true);
   };
 
   // -------------------------------------------------------------
@@ -340,6 +348,7 @@ export default function App() {
             <th style={thStyle}>Email</th>
             <th style={thStyle}>Phone</th>
             <th style={thStyle}>QR URL</th>
+            <th style={thStyle}>QR Name</th>
             <th style={thStyle}>Actions</th>
           </tr>
         </thead>
@@ -347,12 +356,20 @@ export default function App() {
         <tbody>
           {pageData.map((cust) => (
             <tr key={cust.id}>
-              <td style={tdStyle}>{cust.company_name}</td>
+              <td style={tdStyle}>
+                <span 
+                  onClick={() => handleShowCompany(cust)}
+                  style={{ color: "#3e53f6", cursor: "pointer", textDecoration: "underline" }}
+                >
+                  {cust.company_name || cust.first_name}
+                </span>
+              </td>
               <td style={tdStyle}>{cust.first_name}</td>
               <td style={tdStyle}>{cust.last_name}</td>
               <td style={tdStyle}>{cust.email}</td>
               <td style={tdStyle}>{cust.phone_number}</td>
               <td style={tdStyle}>{cust.qr_url}</td>
+              <td style={tdStyle}>{cust.qr_label || '-'}</td>
 
               <td style={tdStyle}>
                 <button
@@ -403,6 +420,22 @@ export default function App() {
       {/* QR MODAL */}
       {qrModalOpen && selectedQR && (
         <QRModal customer={selectedQR} onClose={() => setQrModalOpen(false)} />
+      )}
+
+      {/* COMPANY MODAL */}
+      {companyModalOpen && selectedCompany && (
+        <CompanyModal 
+          customer={selectedCompany} 
+          onClose={() => {
+            setCompanyModalOpen(false);
+            fetchCustomers();
+          }}
+          onOpenQR={(qr) => {
+            setCompanyModalOpen(false);
+            setSelectedQR({...selectedCompany, ...qr});
+            setQrModalOpen(true);
+          }}
+        />
       )}
     </div>
   );

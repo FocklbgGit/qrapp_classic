@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from "react";
 export default function QRModal({ customer, onClose }) {
   if (!customer) return null;
 
-  const BACKEND = "https://oilqr.com";
+  const API_BASE = "http://3.132.252.239:5000";
   const canvasRef = useRef(null);
   const [qrInstance, setQrInstance] = useState(null);
 
@@ -27,15 +27,6 @@ export default function QRModal({ customer, onClose }) {
   const [paddingHex, setPaddingHex] = useState("#ffffff");
   const [paddingColorOpen, setPaddingColorOpen] = useState(false);
 
-  // Auto-enable padding with safe defaults when border is enabled
-  const handleBorderChange = (checked) => {
-    setBorderEnabled(checked);
-    if (checked && !paddingEnabled) {
-      setPaddingEnabled(true);
-      setPadding(15); // Safe quiet zone
-    }
-  };
-
   // Corners
   const [cornersEnabled, setCornersEnabled] = useState(false);
   const [cornerRadius, setCornerRadius] = useState(20);
@@ -43,11 +34,17 @@ export default function QRModal({ customer, onClose }) {
   // Download quality
   const [downloadQuality, setDownloadQuality] = useState("standard");
 
+  // Save/Load designs
+  const [savedDesigns, setSavedDesigns] = useState([]);
+  const [designName, setDesignName] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [showSavedDesigns, setShowSavedDesigns] = useState(false);
+
   const company = (customer.company_name || "").trim();
   const customerName = `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
   const displayName = company || customerName;
 
-  const qrValue = `${BACKEND}/r/${customer.redirect_code}`;
+  const qrValue = `${API_BASE}/r/${customer.redirect_code}`;
 
   const extractDomain = (url) => {
     try {
@@ -59,6 +56,15 @@ export default function QRModal({ customer, onClose }) {
   };
 
   const bottomText = extractDomain(customer.qr_url);
+
+  // Auto-enable padding with safe defaults when border is enabled
+  const handleBorderChange = (checked) => {
+    setBorderEnabled(checked);
+    if (checked && !paddingEnabled) {
+      setPaddingEnabled(true);
+      setPadding(15);
+    }
+  };
 
   const hexToRgb = (hex) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -76,12 +82,98 @@ export default function QRModal({ customer, onClose }) {
     }).join("");
   };
 
+  // Load saved designs on mount
+  useEffect(() => {
+    if (customer.qr_id) {
+      loadSavedDesigns();
+    }
+  }, [customer.qr_id]);
+
+  const loadSavedDesigns = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`);
+      if (response.ok) {
+        const designs = await response.json();
+        setSavedDesigns(designs);
+      }
+    } catch (error) {
+      console.error("Error loading designs:", error);
+    }
+  };
+
+  const saveDesign = async () => {
+    if (!designName.trim()) {
+      setSaveMessage("Enter a design name");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          design_name: designName.trim(),
+          qr_size: qrSize,
+          qr_color: qrColor,
+          border_enabled: borderEnabled,
+          border_width: borderWidth,
+          border_color: borderColor,
+          padding_enabled: paddingEnabled,
+          padding: padding,
+          padding_color: paddingColor,
+          corners_enabled: cornersEnabled,
+          corner_radius: cornerRadius,
+          download_quality: downloadQuality
+        })
+      });
+
+      if (response.ok) {
+        setSaveMessage("Design saved!");
+        setDesignName("");
+        loadSavedDesigns();
+        setTimeout(() => setSaveMessage(""), 2000);
+      } else {
+        setSaveMessage("Error saving design");
+      }
+    } catch (error) {
+      setSaveMessage("Error: " + error.message);
+    }
+  };
+
+  const loadDesign = (design) => {
+    setQrSize(design.qr_size || 600);
+    setQrColor(design.qr_color || "#000000");
+    setQrHex(design.qr_color || "#000000");
+    setBorderEnabled(design.border_enabled || false);
+    setBorderWidth(design.border_width || 4);
+    setBorderColor(design.border_color || "#000000");
+    setBorderHex(design.border_color || "#000000");
+    setPaddingEnabled(design.padding_enabled || false);
+    setPadding(design.padding || 15);
+    setPaddingColor(design.padding_color || "#ffffff");
+    setPaddingHex(design.padding_color || "#ffffff");
+    setCornersEnabled(design.corners_enabled || false);
+    setCornerRadius(design.corner_radius || 20);
+    setDownloadQuality(design.download_quality || "standard");
+    setShowSavedDesigns(false);
+  };
+
+  const deleteDesign = async (designId) => {
+    if (!window.confirm("Delete this design?")) return;
+
+    try {
+      await fetch(`${API_BASE}/api/designs/${designId}`, { method: "DELETE" });
+      loadSavedDesigns();
+    } catch (error) {
+      console.error("Error deleting design:", error);
+    }
+  };
+
   const handleDownload = () => {
     if (!canvasRef.current) return;
     
     const qrCanvas = canvasRef.current;
     
-    // Determine scale based on quality
     const qualitySettings = {
       web: { scale: 0.5, size: 300 },
       standard: { scale: 1, size: 600 },
@@ -90,8 +182,6 @@ export default function QRModal({ customer, onClose }) {
     };
     
     const { scale } = qualitySettings[downloadQuality];
-    
-    // SUPERSAMPLING: Render at 2x, then scale down for crisp edges
     const supersample = 2;
     
     const qrPx = qrSize * scale * supersample;
@@ -101,24 +191,19 @@ export default function QRModal({ customer, onClose }) {
 
     const finalSuper = qrPx + pad * 2 + border * 2;
     
-    // Create temp canvas at 2x resolution
     const temp = document.createElement("canvas");
     temp.width = finalSuper;
     temp.height = finalSuper;
     const tempCtx = temp.getContext("2d");
     
-    // Enable high-quality rendering
     tempCtx.imageSmoothingEnabled = true;
     tempCtx.imageSmoothingQuality = 'high';
 
-    // Draw background
     tempCtx.fillStyle = borderEnabled && paddingEnabled ? paddingColor : "#ffffff";
     tempCtx.fillRect(0, 0, finalSuper, finalSuper);
 
-    // Draw QR code
     tempCtx.drawImage(qrCanvas, border + pad, border + pad, qrPx, qrPx);
 
-    // Draw border
     if (border > 0) {
       tempCtx.strokeStyle = borderColor;
       tempCtx.lineWidth = border;
@@ -127,7 +212,6 @@ export default function QRModal({ customer, onClose }) {
       tempCtx.stroke();
     }
 
-    // If corners enabled, CUT OUT the corners to make them transparent
     if (radius > 0) {
       tempCtx.globalCompositeOperation = 'destination-in';
       tempCtx.fillStyle = '#000000';
@@ -137,7 +221,6 @@ export default function QRModal({ customer, onClose }) {
       tempCtx.globalCompositeOperation = 'source-over';
     }
 
-    // Scale down to final size for crisp result
     const final = finalSuper / supersample;
     const out = document.createElement("canvas");
     out.width = final;
@@ -147,19 +230,17 @@ export default function QRModal({ customer, onClose }) {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(temp, 0, 0, finalSuper, finalSuper, 0, 0, final, final);
 
-    // Download
     const link = document.createElement('a');
-    link.download = `${displayName || "QR"}_QR.png`;
+    const qrName = customer.label || customer.qr_label || displayName || "QR";
+    link.download = `${qrName}_QR.png`;
     link.href = out.toDataURL('image/png');
     link.click();
   };
 
-  // Load and initialize QRious
   useEffect(() => {
     if (!canvasRef.current) return;
 
     const loadQRious = async () => {
-      // Check if QRious is already loaded
       if (window.QRious) {
         const qr = new window.QRious({
           element: canvasRef.current,
@@ -173,7 +254,6 @@ export default function QRModal({ customer, onClose }) {
         return;
       }
 
-      // Load QRious library
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
       script.async = true;
@@ -249,14 +329,7 @@ export default function QRModal({ customer, onClose }) {
             <label style={{ fontSize: 12, fontWeight: "bold", color: "#333", display: "block", marginBottom: 6 }}>Custom Color</label>
             <input type="color" value={color} 
               onChange={(e) => { onColorChange(e.target.value); onHexChange(e.target.value); }}
-              style={{ 
-                width: "100%", 
-                height: 50, 
-                cursor: "pointer", 
-                border: "2px solid #ddd", 
-                borderRadius: 6,
-                padding: 2
-              }} 
+              style={{ width: "100%", height: 50, cursor: "pointer", border: "2px solid #ddd", borderRadius: 6, padding: 2 }} 
             />
           </div>
           <div style={{ marginBottom: 12 }}>
@@ -309,22 +382,18 @@ export default function QRModal({ customer, onClose }) {
       opacity: disabled ? 0.4 : 1, 
       pointerEvents: disabled ? "none" : "auto", position: "relative" 
     }}>
-      {/* Checkbox column - fixed 25px */}
       <div style={{ width: 25, flexShrink: 0 }}>
         {onCheck && (
           <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} disabled={disabled} />
         )}
       </div>
       
-      {/* Indent space for nested items */}
       {indent && <div style={{ width: 20, flexShrink: 0 }} />}
       
-      {/* Label column - fixed width */}
       <strong style={{ width: indent ? 65 : 85, textAlign: "left", flexShrink: 0 }}>
         {label}
       </strong>
       
-      {/* Controls - value input, arrows, color */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input 
           type="text"
@@ -386,9 +455,9 @@ export default function QRModal({ customer, onClose }) {
         width: 420,
         textAlign: "center",
       }}>
-        <h2>{displayName}</h2>
+        <h2>{customer.label || customer.qr_label || displayName}</h2>
 
-        {/* CONTROLS - CENTERED */}
+        {/* CONTROLS */}
         <div style={{ marginBottom: 20, display: "flex", justifyContent: "center" }}>
           <div style={{ width: 350 }}>
             <ControlRow 
@@ -469,19 +538,68 @@ export default function QRModal({ customer, onClose }) {
           <select 
             value={downloadQuality} 
             onChange={(e) => setDownloadQuality(e.target.value)}
-            style={{ 
-              padding: "6px 10px", 
-              borderRadius: 4, 
-              border: "1px solid #ccc",
-              fontSize: 13,
-              cursor: "pointer"
-            }}
+            style={{ padding: "6px 10px", borderRadius: 4, border: "1px solid #ccc", fontSize: 13, cursor: "pointer" }}
           >
             <option value="web">Web (300px ~30KB)</option>
             <option value="standard">Standard (600px ~80KB)</option>
             <option value="print">Print (1200px ~180KB)</option>
             <option value="highres">High-Res (2400px ~350KB)</option>
           </select>
+        </div>
+
+        {/* SAVE/LOAD DESIGN SECTION */}
+        <div style={{ marginTop: 15, padding: 10, background: "#f5f5f5", borderRadius: 6 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input
+              type="text"
+              placeholder="Design name..."
+              value={designName}
+              onChange={(e) => setDesignName(e.target.value)}
+              style={{ flex: 1, padding: "6px 10px", border: "1px solid #ccc", borderRadius: 4 }}
+            />
+            <button
+              onClick={saveDesign}
+              style={{
+                background: "#28a745",
+                color: "white",
+                padding: "6px 12px",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontWeight: "bold"
+              }}
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setShowSavedDesigns(!showSavedDesigns)}
+              style={{
+                background: "#3e53f6",
+                color: "white",
+                padding: "6px 12px",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer"
+              }}
+            >
+              Load ({savedDesigns.length})
+            </button>
+          </div>
+          {saveMessage && <div style={{ fontSize: 12, color: saveMessage.includes("Error") ? "red" : "green" }}>{saveMessage}</div>}
+          
+          {showSavedDesigns && savedDesigns.length > 0 && (
+            <div style={{ marginTop: 10, maxHeight: 150, overflowY: "auto", textAlign: "left" }}>
+              {savedDesigns.map(design => (
+                <div key={design.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "white", marginBottom: 4, borderRadius: 4, border: "1px solid #ddd" }}>
+                  <span style={{ fontSize: 13 }}>{design.design_name}</span>
+                  <div>
+                    <button onClick={() => loadDesign(design)} style={{ marginRight: 5, padding: "3px 8px", fontSize: 11, cursor: "pointer" }}>Load</button>
+                    <button onClick={() => deleteDesign(design.id)} style={{ padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "red" }}>×</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button
