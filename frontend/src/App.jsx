@@ -7,7 +7,7 @@ import CompanyModal from "./CompanyModal";
 // -------------------------------------------------------------
 // BACKEND API — PRODUCTION
 // -------------------------------------------------------------
-const API_BASE = "http://3.132.252.239:5000";
+const API_BASE = "https://oilqr.com";
 
 export default function App() {
   const [customers, setCustomers] = useState([]);

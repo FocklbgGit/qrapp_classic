@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from "react";
 export default function QRModal({ customer, onClose }) {
   if (!customer) return null;
 
-  const API_BASE = "http://3.132.252.239:5000";
+  const API_BASE = "https://oilqr.com";
   const canvasRef = useRef(null);
   const [qrInstance, setQrInstance] = useState(null);
 

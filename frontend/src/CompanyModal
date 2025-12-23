@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
-const API_BASE = "http://18.224.13.215:5000";
+const API_BASE = "https://oilqr.com";
+
 
 export default function CompanyModal({ customer, onClose, onOpenQR }) {
   const [qrCodes, setQrCodes] = useState([]);
