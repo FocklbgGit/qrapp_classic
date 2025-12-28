@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from './AuthContext';
 
 // -------------------------------------------------------------
 // BACKEND API — PRODUCTION
@@ -8,6 +9,8 @@ import React, { useState, useEffect } from "react";
 const API_BASE = "https://oilqr.com";
 
 export default function CompanyModal({ customer, onClose, onOpenQR }) {
+  const { getAuthHeaders } = useAuth();
+
   const [qrCodes, setQrCodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -27,7 +30,9 @@ export default function CompanyModal({ customer, onClose, onOpenQR }) {
   const loadQRCodes = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/customers/${customer.id}/qrcodes`);
+      const response = await fetch(`${API_BASE}/api/customers/${customer.id}/qrcodes`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setQrCodes(data);
@@ -48,7 +53,7 @@ export default function CompanyModal({ customer, onClose, onOpenQR }) {
     try {
       const response = await fetch(`${API_BASE}/api/customers/${customer.id}/qrcodes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
           qr_url: newQrUrl.trim().startsWith('http') ? newQrUrl.trim() : 'https://' + newQrUrl.trim(),
           label: newQrLabel.trim(),
@@ -77,7 +82,7 @@ export default function CompanyModal({ customer, onClose, onOpenQR }) {
     try {
       const response = await fetch(`${API_BASE}/api/qrcodes/${editingQR.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
           qr_url: editUrl.trim().startsWith('http') ? editUrl.trim() : 'https://' + editUrl.trim(),
           label: editLabel.trim(),

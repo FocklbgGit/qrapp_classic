@@ -3,6 +3,8 @@ import { QRCodeCanvas } from "qrcode.react";
 import EditModal from "./EditModal";
 import QRModal from "./QRModal";
 import CompanyModal from "./CompanyModal";
+import { useAuth } from './AuthContext';
+import LoginPage from './LoginPage';
 
 // -------------------------------------------------------------
 // BACKEND API — PRODUCTION
@@ -12,6 +14,8 @@ import CompanyModal from "./CompanyModal";
 const API_BASE = "https://oilqr.com";
 
 export default function App() {
+  const { user, loading, logout, getAuthHeaders } = useAuth();
+
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -37,6 +41,17 @@ export default function App() {
   const [pageSize, setPageSize] = useState(5);
 
   // -------------------------------------------------------------
+  // AUTH CHECK
+  // -------------------------------------------------------------
+  if (loading) {
+    return <div style={{ textAlign: 'center', marginTop: 100 }}>Loading...</div>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  // -------------------------------------------------------------
   // HELPER: ENSURE URL HAS PROTOCOL
   // -------------------------------------------------------------
   const ensureProtocol = (url) => {
@@ -53,7 +68,9 @@ export default function App() {
   // -------------------------------------------------------------
   const fetchCustomers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/customers`);
+      const response = await fetch(`${API_BASE}/api/customers`, {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       setCustomers(data);
     } catch (err) {
@@ -95,7 +112,7 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/api/customers`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           company_name: companyName.trim(),
           first_name: firstName.trim(),
@@ -148,7 +165,7 @@ export default function App() {
 
       await fetch(`${API_BASE}/api/customers/${updatedData.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(safe),
       });
 
@@ -166,7 +183,10 @@ export default function App() {
     if (!window.confirm("Delete this customer?")) return;
 
     try {
-      await fetch(`${API_BASE}/api/customers/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/api/customers/${id}`, { 
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
       await fetchCustomers();
       setEditModalOpen(false);
     } catch (err) {
@@ -221,7 +241,13 @@ export default function App() {
   // -------------------------------------------------------------
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", textAlign: "center" }}>
-      <h1>QR Code Generator</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h1 style={{ margin: 0 }}>QR Code Generator</h1>
+        <div>
+          <span style={{ marginRight: 10 }}>Welcome, {user.first_name}</span>
+          <button onClick={logout} style={{ padding: '6px 12px', cursor: 'pointer' }}>Logout</button>
+        </div>
+      </div>
 
       {/* FORM */}
       <div style={{ marginBottom: 20 }}>

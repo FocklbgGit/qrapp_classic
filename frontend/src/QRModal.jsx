@@ -1,7 +1,10 @@
 import React, { useRef, useEffect, useState } from "react";
+import { useAuth } from './AuthContext';
 
 export default function QRModal({ customer, onClose }) {
   if (!customer) return null;
+
+  const { getAuthHeaders } = useAuth();
 
   // -------------------------------------------------------------
   // BACKEND API — PRODUCTION
@@ -102,7 +105,9 @@ export default function QRModal({ customer, onClose }) {
     
     setLoadingDesigns(true);
     try {
-      const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`);
+      const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const designs = await response.json();
         setSavedDesigns(designs);
@@ -145,7 +150,7 @@ export default function QRModal({ customer, onClose }) {
 
       const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(designData)
       });
 
@@ -193,7 +198,8 @@ export default function QRModal({ customer, onClose }) {
     
     try {
       const response = await fetch(`${API_BASE}/api/designs/${designId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       
       if (response.ok) {
