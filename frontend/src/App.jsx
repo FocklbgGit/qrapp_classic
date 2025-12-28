@@ -41,18 +41,6 @@ export default function App() {
   const [pageSize, setPageSize] = useState(5);
 
   // -------------------------------------------------------------
-  // HELPER: ENSURE URL HAS PROTOCOL
-  // -------------------------------------------------------------
-  const ensureProtocol = (url) => {
-    if (!url) return url;
-    const trimmed = url.trim();
-    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-      return "https://" + trimmed;
-    }
-    return trimmed;
-  };
-
-  // -------------------------------------------------------------
   // FETCH CUSTOMERS
   // -------------------------------------------------------------
   const fetchCustomers = async () => {
@@ -85,7 +73,6 @@ export default function App() {
     return <LoginPage />;
   }
 
-  const clearOnType = () => setMessage("");
   // -------------------------------------------------------------
   // HELPER: ENSURE URL HAS PROTOCOL
   // -------------------------------------------------------------
@@ -98,25 +85,6 @@ export default function App() {
     return trimmed;
   };
 
-  // -------------------------------------------------------------
-  // FETCH CUSTOMERS
-  // -------------------------------------------------------------
-  const fetchCustomers = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/customers`, {
-        headers: getAuthHeaders()
-      });
-      const data = await response.json();
-      setCustomers(data);
-    } catch (err) {
-      console.error("Fetch customers error:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
   const clearOnType = () => setMessage("");
 
   // -------------------------------------------------------------
@@ -127,7 +95,6 @@ export default function App() {
       setMessage("Enter a URL first.");
       return;
     }
-    // Add https:// for preview too
     const validUrl = ensureProtocol(qrUrl);
     setQrValue(validUrl);
   };
@@ -141,7 +108,6 @@ export default function App() {
       return;
     }
 
-    // Ensure URL has protocol before saving
     const validUrl = ensureProtocol(qrUrl);
 
     try {
@@ -160,7 +126,6 @@ export default function App() {
 
       if (response.ok) {
         await fetchCustomers();
-
         setMessage("Customer saved.");
         setCompanyName("");
         setFirstName("");
@@ -193,7 +158,6 @@ export default function App() {
     try {
       const { redirect_code, ...safe } = updatedData;
 
-      // Ensure URL has protocol
       if (safe.qr_url) {
         safe.qr_url = ensureProtocol(safe.qr_url);
       }
@@ -255,7 +219,7 @@ export default function App() {
       setCurrentPage(currentPage + 1);
   };
 
-    // -------------------------------------------------------------
+  // -------------------------------------------------------------
   // OPEN COMPANY MODAL
   // -------------------------------------------------------------
   const handleShowCompany = (cust) => {
@@ -487,6 +451,7 @@ export default function App() {
       {qrModalOpen && selectedQR && (
         <QRModal customer={selectedQR} onClose={() => setQrModalOpen(false)} />
       )}
+      
       {/* COMPANY MODAL */}
       {companyModalOpen && selectedCompany && (
         <CompanyModal 
@@ -494,7 +459,7 @@ export default function App() {
           onClose={() => {
             setCompanyModalOpen(false);
             fetchCustomers();
-}}
+          }}
           onOpenQR={(qr) => {
             setCompanyModalOpen(false);
             setSelectedQR({...selectedCompany, ...qr});
