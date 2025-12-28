@@ -41,7 +41,41 @@ export default function App() {
   const [pageSize, setPageSize] = useState(5);
 
   // -------------------------------------------------------------
-  // AUTH CHECK
+  // HELPER: ENSURE URL HAS PROTOCOL
+  // -------------------------------------------------------------
+  const ensureProtocol = (url) => {
+    if (!url) return url;
+    const trimmed = url.trim();
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      return "https://" + trimmed;
+    }
+    return trimmed;
+  };
+
+  // -------------------------------------------------------------
+  // FETCH CUSTOMERS
+  // -------------------------------------------------------------
+  const fetchCustomers = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/customers`, {
+        headers: getAuthHeaders()
+      });
+      const data = await response.json();
+      setCustomers(data);
+    } catch (err) {
+      console.error("Fetch customers error:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchCustomers();
+    }
+  }, [user]);
+
+  // -------------------------------------------------------------
+  // AUTH CHECK - Must be after all hooks
   // -------------------------------------------------------------
   if (loading) {
     return <div style={{ textAlign: 'center', marginTop: 100 }}>Loading...</div>;
@@ -51,6 +85,7 @@ export default function App() {
     return <LoginPage />;
   }
 
+  const clearOnType = () => setMessage("");
   // -------------------------------------------------------------
   // HELPER: ENSURE URL HAS PROTOCOL
   // -------------------------------------------------------------
