@@ -1,46 +1,54 @@
 import React, { useRef, useEffect, useState } from "react";
-import { useAuth } from './AuthContext';
+import { getAuthHeaders } from "./AuthContext";
 
 export default function QRModal({ customer, onClose }) {
   if (!customer) return null;
 
-  const { getAuthHeaders } = useAuth();
-
-  // -------------------------------------------------------------
-  // BACKEND API — PRODUCTION
-  // https://oilqr.com is the permanent production URL
-  // NEVER change this to an IP address
-  // -------------------------------------------------------------
-  const API_BASE = "https://oilqr.com";
+  const API_BASE = 'https://oilqr.com';
   const canvasRef = useRef(null);
   const [qrInstance, setQrInstance] = useState(null);
 
+  // DEFAULT VALUES - used for reset
+  const DEFAULTS = {
+    qrSize: 600,
+    qrColor: "#000000",
+    borderEnabled: false,
+    borderWidth: 4,
+    borderColor: "#000000",
+    paddingEnabled: false,
+    padding: 15,
+    paddingColor: "#ffffff",
+    cornersEnabled: false,
+    cornerRadius: 20,
+    downloadQuality: "standard"
+  };
+
   // QR Size
-  const [qrSize, setQrSize] = useState(600);
-  const [qrColor, setQrColor] = useState("#000000");
-  const [qrHex, setQrHex] = useState("#000000");
+  const [qrSize, setQrSize] = useState(DEFAULTS.qrSize);
+  const [qrColor, setQrColor] = useState(DEFAULTS.qrColor);
+  const [qrHex, setQrHex] = useState(DEFAULTS.qrColor);
   const [qrColorOpen, setQrColorOpen] = useState(false);
 
   // Border
-  const [borderEnabled, setBorderEnabled] = useState(false);
-  const [borderWidth, setBorderWidth] = useState(4);
-  const [borderColor, setBorderColor] = useState("#000000");
-  const [borderHex, setBorderHex] = useState("#000000");
+  const [borderEnabled, setBorderEnabled] = useState(DEFAULTS.borderEnabled);
+  const [borderWidth, setBorderWidth] = useState(DEFAULTS.borderWidth);
+  const [borderColor, setBorderColor] = useState(DEFAULTS.borderColor);
+  const [borderHex, setBorderHex] = useState(DEFAULTS.borderColor);
   const [borderColorOpen, setBorderColorOpen] = useState(false);
 
   // Padding
-  const [paddingEnabled, setPaddingEnabled] = useState(false);
-  const [padding, setPadding] = useState(15);
-  const [paddingColor, setPaddingColor] = useState("#ffffff");
-  const [paddingHex, setPaddingHex] = useState("#ffffff");
+  const [paddingEnabled, setPaddingEnabled] = useState(DEFAULTS.paddingEnabled);
+  const [padding, setPadding] = useState(DEFAULTS.padding);
+  const [paddingColor, setPaddingColor] = useState(DEFAULTS.paddingColor);
+  const [paddingHex, setPaddingHex] = useState(DEFAULTS.paddingColor);
   const [paddingColorOpen, setPaddingColorOpen] = useState(false);
 
   // Corners
-  const [cornersEnabled, setCornersEnabled] = useState(false);
-  const [cornerRadius, setCornerRadius] = useState(20);
+  const [cornersEnabled, setCornersEnabled] = useState(DEFAULTS.cornersEnabled);
+  const [cornerRadius, setCornerRadius] = useState(DEFAULTS.cornerRadius);
 
   // Download quality
-  const [downloadQuality, setDownloadQuality] = useState("standard");
+  const [downloadQuality, setDownloadQuality] = useState(DEFAULTS.downloadQuality);
 
   // ========== SAVE/LOAD STATE ==========
   const [savedDesigns, setSavedDesigns] = useState([]);
@@ -49,6 +57,26 @@ export default function QRModal({ customer, onClose }) {
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
   const [loadingDesigns, setLoadingDesigns] = useState(false);
+
+  // ========== CLEAR/RESET FUNCTION ==========
+  const handleClear = () => {
+    setQrSize(DEFAULTS.qrSize);
+    setQrColor(DEFAULTS.qrColor);
+    setQrHex(DEFAULTS.qrColor);
+    setBorderEnabled(DEFAULTS.borderEnabled);
+    setBorderWidth(DEFAULTS.borderWidth);
+    setBorderColor(DEFAULTS.borderColor);
+    setBorderHex(DEFAULTS.borderColor);
+    setPaddingEnabled(DEFAULTS.paddingEnabled);
+    setPadding(DEFAULTS.padding);
+    setPaddingColor(DEFAULTS.paddingColor);
+    setPaddingHex(DEFAULTS.paddingColor);
+    setCornersEnabled(DEFAULTS.cornersEnabled);
+    setCornerRadius(DEFAULTS.cornerRadius);
+    setDownloadQuality(DEFAULTS.downloadQuality);
+    setSaveStatus('✓ Reset to defaults');
+    setTimeout(() => setSaveStatus(''), 2000);
+  };
 
   // Auto-enable padding with safe defaults when border is enabled
   const handleBorderChange = (checked) => {
@@ -150,7 +178,10 @@ export default function QRModal({ customer, onClose }) {
 
       const response = await fetch(`${API_BASE}/api/qr/${customer.qr_id}/designs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify(designData)
       });
 
@@ -342,21 +373,28 @@ export default function QRModal({ customer, onClose }) {
       <>
         <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 10000 }} />
         <div style={{
-          position: "absolute", top: "100%", left: 0, marginTop: 5,
-          background: "white", border: "1px solid #ccc", borderRadius: 6,
-          padding: 15, boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          zIndex: 10001, minWidth: 240
+          position: "fixed", 
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "white", 
+          border: "1px solid #ccc", 
+          borderRadius: 6,
+          padding: 15, 
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          zIndex: 10001, 
+          width: 280
         }}>
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 12, fontWeight: "bold", color: "#333", display: "block", marginBottom: 6 }}>Color Palette</label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
               {colorPalette.map((c) => (
                 <div
                   key={c}
-                  onClick={() => { onColorChange(c); onHexChange(c); }}
+                  onClick={() => { onColorChange(c); onHexChange(c); onClose(); }}
                   style={{
                     width: "100%",
-                    height: 32,
+                    height: 36,
                     background: c,
                     border: color === c ? "3px solid #3e53f6" : "1px solid #ddd",
                     borderRadius: 4,
@@ -382,31 +420,37 @@ export default function QRModal({ customer, onClose }) {
                 if (/^#[0-9A-F]{6}$/i.test(val)) onColorChange(val);
               }}
               placeholder="#000000"
-              style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: 4, fontSize: 13 }} />
+              style={{ width: "100%", padding: "8px", border: "1px solid #ccc", borderRadius: 4, fontSize: 13, boxSizing: "border-box" }} />
           </div>
-          <div>
+          <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 11, color: "#666", display: "block", marginBottom: 4 }}>RGB</label>
             <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 10, color: "#999", display: "block", marginBottom: 2 }}>R</label>
                 <input type="number" value={rgb.r} onChange={(e) => handleRgbChange("r", e.target.value)}
                   min="0" max="255"
-                  style={{ width: "100%", padding: "6px 4px", border: "1px solid #ccc", borderRadius: 4, fontSize: 12 }} />
+                  style={{ width: "100%", padding: "6px 4px", border: "1px solid #ccc", borderRadius: 4, fontSize: 12, boxSizing: "border-box" }} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 10, color: "#999", display: "block", marginBottom: 2 }}>G</label>
                 <input type="number" value={rgb.g} onChange={(e) => handleRgbChange("g", e.target.value)}
                   min="0" max="255"
-                  style={{ width: "100%", padding: "6px 4px", border: "1px solid #ccc", borderRadius: 4, fontSize: 12 }} />
+                  style={{ width: "100%", padding: "6px 4px", border: "1px solid #ccc", borderRadius: 4, fontSize: 12, boxSizing: "border-box" }} />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ fontSize: 10, color: "#999", display: "block", marginBottom: 2 }}>B</label>
                 <input type="number" value={rgb.b} onChange={(e) => handleRgbChange("b", e.target.value)}
                   min="0" max="255"
-                  style={{ width: "100%", padding: "6px 4px", border: "1px solid #ccc", borderRadius: 4, fontSize: 12 }} />
+                  style={{ width: "100%", padding: "6px 4px", border: "1px solid #ccc", borderRadius: 4, fontSize: 12, boxSizing: "border-box" }} />
               </div>
             </div>
           </div>
+          <button
+            onClick={onClose}
+            style={{ width: "100%", padding: "8px", background: "#eee", border: "none", borderRadius: 4, cursor: "pointer", marginTop: 8 }}
+          >
+            Done
+          </button>
         </div>
       </>
     );
@@ -420,22 +464,25 @@ export default function QRModal({ customer, onClose }) {
   }) => (
     <div style={{ 
       marginBottom: 8, display: "flex", alignItems: "center", 
-      opacity: disabled ? 0.4 : 1, 
-      pointerEvents: disabled ? "none" : "auto", position: "relative" 
+      position: "relative" 
     }}>
       <div style={{ width: 25, flexShrink: 0 }}>
         {onCheck && (
-          <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} disabled={disabled} />
+          <input type="checkbox" checked={checked} onChange={(e) => onCheck(e.target.checked)} />
         )}
       </div>
       
       {indent && <div style={{ width: 20, flexShrink: 0 }} />}
       
-      <strong style={{ width: indent ? 65 : 85, textAlign: "left", flexShrink: 0 }}>
+      <strong style={{ width: indent ? 65 : 85, textAlign: "left", flexShrink: 0, opacity: disabled ? 0.4 : 1 }}>
         {label}
       </strong>
       
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <div style={{ 
+        display: "flex", gap: 6, alignItems: "center",
+        opacity: disabled ? 0.4 : 1,
+        pointerEvents: disabled ? "none" : "auto"
+      }}>
         <input 
           type="text"
           inputMode="numeric"
@@ -470,10 +517,8 @@ export default function QRModal({ customer, onClose }) {
           )}
         </div>
         {showColor && (
-          <div style={{ position: "relative" }}>
-            <ColorPopup isOpen={colorOpen} onClose={() => setColorOpen(false)}
-              color={color} onColorChange={onColorChange} hex={hex} onHexChange={onHexChange} />
-          </div>
+          <ColorPopup isOpen={colorOpen} onClose={() => setColorOpen(false)}
+            color={color} onColorChange={onColorChange} hex={hex} onHexChange={onHexChange} />
         )}
       </div>
     </div>
@@ -485,17 +530,18 @@ export default function QRModal({ customer, onClose }) {
       inset: 0,
       background: "rgba(0,0,0,0.5)",
       display: "flex",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "center",
+      paddingTop: 40,
       zIndex: 9999,
     }}>
       <div style={{
         background: "white",
-        padding: 20,
+        padding: 25,
         borderRadius: 10,
-        width: 420,
+        width: 700,
         textAlign: "center",
-        maxHeight: "90vh",
+        maxHeight: "calc(100vh - 80px)",
         overflowY: "auto"
       }}>
         <h2>{customer.label || customer.qr_label || displayName}</h2>
@@ -514,47 +560,66 @@ export default function QRModal({ customer, onClose }) {
           </div>
         )}
 
-        {/* SAVE / LOAD BUTTONS */}
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 15 }}>
-          <button
-            onClick={() => setShowSaveModal(true)}
-            disabled={!customer.qr_id}
-            style={{
-              background: "#28a745",
-              color: "white",
-              padding: "8px 16px",
-              borderRadius: 6,
-              border: "none",
-              cursor: customer.qr_id ? "pointer" : "not-allowed",
-              fontSize: 13,
-              fontWeight: "bold",
-              opacity: customer.qr_id ? 1 : 0.5
-            }}
-          >
-            💾 Save Design
-          </button>
-          <button
-            onClick={() => { setShowLoadModal(true); loadDesigns(); }}
-            disabled={!customer.qr_id}
-            style={{
-              background: "#007bff",
-              color: "white",
-              padding: "8px 16px",
-              borderRadius: 6,
-              border: "none",
-              cursor: customer.qr_id ? "pointer" : "not-allowed",
-              fontSize: 13,
-              fontWeight: "bold",
-              opacity: customer.qr_id ? 1 : 0.5
-            }}
-          >
-            📂 Load ({savedDesigns.length})
-          </button>
-        </div>
+        {/* MAIN CONTENT - Two Column Layout */}
+        <div style={{ display: "flex", gap: 30, marginTop: 72, marginBottom: 72 }}>
+          
+          {/* LEFT COLUMN - Controls */}
+          <div style={{ width: 280, flexShrink: 0, textAlign: "left" }}>
+            
+            {/* Save/Load/Clear Buttons */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 15, flexWrap: "wrap" }}>
+              <button
+                onClick={() => setShowSaveModal(true)}
+                disabled={!customer.qr_id}
+                style={{
+                  background: "#28a745",
+                  color: "white",
+                  padding: "6px 12px",
+                  borderRadius: 4,
+                  border: "none",
+                  cursor: customer.qr_id ? "pointer" : "not-allowed",
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  opacity: customer.qr_id ? 1 : 0.5
+                }}
+              >
+                💾 Save
+              </button>
+              <button
+                onClick={() => { setShowLoadModal(true); loadDesigns(); }}
+                disabled={!customer.qr_id}
+                style={{
+                  background: "#007bff",
+                  color: "white",
+                  padding: "6px 12px",
+                  borderRadius: 4,
+                  border: "none",
+                  cursor: customer.qr_id ? "pointer" : "not-allowed",
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  opacity: customer.qr_id ? 1 : 0.5
+                }}
+              >
+                📂 Load ({savedDesigns.length})
+              </button>
+              <button
+                onClick={handleClear}
+                style={{
+                  background: "#6c757d",
+                  color: "white",
+                  padding: "6px 12px",
+                  borderRadius: 4,
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: "bold"
+                }}
+              >
+                🔄 Clear
+              </button>
+            </div>
 
-        {/* CONTROLS */}
-        <div style={{ marginBottom: 20, display: "flex", justifyContent: "center" }}>
-          <div style={{ width: 350 }}>
+            {/* Controls */}
             <ControlRow 
               label="QR Size" 
               value={qrSize} 
@@ -604,74 +669,78 @@ export default function QRModal({ customer, onClose }) {
               indent={true} 
               showColor={false} 
             />
+
+            {/* Download Quality - aligned with controls above */}
+            <div style={{ marginTop: 15, paddingLeft: 25 }}>
+              <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>Download Quality:</label>
+              <select 
+                value={downloadQuality} 
+                onChange={(e) => setDownloadQuality(e.target.value)}
+                style={{ padding: "6px 10px", borderRadius: 4, border: "1px solid #ccc", fontSize: 12, cursor: "pointer", width: 205 }}
+              >
+                <option value="web">Web (300px)</option>
+                <option value="standard">Standard (600px)</option>
+                <option value="print">Print (1200px)</option>
+                <option value="highres">High-Res (2400px)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN - QR Preview (centered in available space) */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{
+              display: "inline-block",
+              background: borderEnabled && paddingEnabled ? paddingColor : "#f5f5f5",
+              padding: borderEnabled && paddingEnabled ? padding : 8,
+              border: borderEnabled ? `${borderWidth}px solid ${borderColor}` : "1px solid #ddd",
+              borderRadius: borderEnabled && cornersEnabled ? cornerRadius : 4,
+              overflow: "hidden"
+            }}>
+              <canvas
+                ref={canvasRef}
+                style={{ display: "block", width: "225px", height: "225px" }}
+              />
+            </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: "#666", textAlign: "center", wordBreak: "break-all", maxWidth: 280 }}>
+              {bottomText}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 11, color: "#999", textAlign: "center" }}>
+              Preview (actual: {qrSize}px)
+            </div>
           </div>
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <div style={{
-            display: "inline-block",
-            background: borderEnabled && paddingEnabled ? paddingColor : "transparent",
-            padding: borderEnabled && paddingEnabled ? padding : 0,
-            border: borderEnabled ? `${borderWidth}px solid ${borderColor}` : "none",
-            borderRadius: borderEnabled && cornersEnabled ? cornerRadius : 0,
-            overflow: "hidden"
-          }}>
-            <canvas
-              ref={canvasRef}
-              style={{ display: "block", maxWidth: "330px", height: "auto" }}
-            />
-          </div>
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
-          {bottomText}
-        </div>
-
-        {/* Download Quality Selector */}
-        <div style={{ marginTop: 20, marginBottom: 10 }}>
-          <label style={{ fontSize: 12, color: "#666", marginRight: 8 }}>Download Quality:</label>
-          <select 
-            value={downloadQuality} 
-            onChange={(e) => setDownloadQuality(e.target.value)}
-            style={{ padding: "6px 10px", borderRadius: 4, border: "1px solid #ccc", fontSize: 13, cursor: "pointer" }}
+        {/* BOTTOM BUTTONS */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", paddingTop: 15, borderTop: "1px solid #eee" }}>
+          <button
+            onClick={handleDownload}
+            style={{
+              background: "#3e53f6",
+              color: "white",
+              padding: "10px 24px",
+              borderRadius: 6,
+              cursor: "pointer",
+              border: "none",
+              fontSize: 14,
+              fontWeight: "bold"
+            }}
           >
-            <option value="web">Web (300px ~30KB)</option>
-            <option value="standard">Standard (600px ~80KB)</option>
-            <option value="print">Print (1200px ~180KB)</option>
-            <option value="highres">High-Res (2400px ~350KB)</option>
-          </select>
+            ⬇ Download PNG
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#eee",
+              padding: "10px 24px",
+              borderRadius: 6,
+              cursor: "pointer",
+              border: "none",
+              fontSize: 14,
+            }}
+          >
+            Close
+          </button>
         </div>
-
-        <button
-          onClick={handleDownload}
-          style={{
-            background: "#3e53f6",
-            color: "white",
-            padding: "10px 20px",
-            borderRadius: 6,
-            marginTop: 20,
-            marginRight: 10,
-            cursor: "pointer",
-            border: "none",
-            fontSize: 14,
-          }}
-        >
-          Download to PNG
-        </button>
-
-        <button
-          onClick={onClose}
-          style={{
-            background: "#eee",
-            padding: "10px 20px",
-            borderRadius: 6,
-            cursor: "pointer",
-            border: "none",
-            fontSize: 14,
-          }}
-        >
-          Close
-        </button>
 
         {/* ========== SAVE MODAL ========== */}
         {showSaveModal && (

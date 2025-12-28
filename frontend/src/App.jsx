@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { useAuth, getAuthHeaders } from "./AuthContext";
 import EditModal from "./EditModal";
 import QRModal from "./QRModal";
 import CompanyModal from "./CompanyModal";
-import { useAuth } from './AuthContext';
-import LoginPage from './LoginPage';
+import LoginPage from "./LoginPage";
 
 // -------------------------------------------------------------
-// BACKEND API — PRODUCTION
-// https://oilqr.com is the permanent production URL
-// NEVER change this to an IP address
+// BACKEND API — DO NOT CHANGE
+// This is where your customer database actually lives
 // -------------------------------------------------------------
 const API_BASE = "https://oilqr.com";
 
-export default function App() {
-  const { user, loading, logout, getAuthHeaders } = useAuth();
+// Main app content (shown after login)
+function AppContent() {
+  const { user, logout } = useAuth();
 
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -41,39 +41,6 @@ export default function App() {
   const [pageSize, setPageSize] = useState(5);
 
   // -------------------------------------------------------------
-  // FETCH CUSTOMERS
-  // -------------------------------------------------------------
-  const fetchCustomers = async () => {
-    if (!user) return;
-    try {
-      const response = await fetch(`${API_BASE}/api/customers`, {
-        headers: getAuthHeaders()
-      });
-      const data = await response.json();
-      setCustomers(data);
-    } catch (err) {
-      console.error("Fetch customers error:", err);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      fetchCustomers();
-    }
-  }, [user]);
-
-  // -------------------------------------------------------------
-  // AUTH CHECK - Must be after all hooks
-  // -------------------------------------------------------------
-  if (loading) {
-    return <div style={{ textAlign: 'center', marginTop: 100 }}>Loading...</div>;
-  }
-
-  if (!user) {
-    return <LoginPage />;
-  }
-
-  // -------------------------------------------------------------
   // HELPER: ENSURE URL HAS PROTOCOL
   // -------------------------------------------------------------
   const ensureProtocol = (url) => {
@@ -84,6 +51,29 @@ export default function App() {
     }
     return trimmed;
   };
+
+  // -------------------------------------------------------------
+  // FETCH CUSTOMERS
+  // -------------------------------------------------------------
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/customers`, {
+        headers: getAuthHeaders()
+      });
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+      const data = await response.json();
+      setCustomers(data);
+    } catch (err) {
+      console.error("Fetch customers error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
 
   const clearOnType = () => setMessage("");
 
@@ -113,7 +103,10 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/api/customers`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        headers: { 
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({
           company_name: companyName.trim(),
           first_name: firstName.trim(),
@@ -124,8 +117,14 @@ export default function App() {
         }),
       });
 
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+
       if (response.ok) {
         await fetchCustomers();
+
         setMessage("Customer saved.");
         setCompanyName("");
         setFirstName("");
@@ -162,11 +161,19 @@ export default function App() {
         safe.qr_url = ensureProtocol(safe.qr_url);
       }
 
-      await fetch(`${API_BASE}/api/customers/${updatedData.id}`, {
+      const response = await fetch(`${API_BASE}/api/customers/${updatedData.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        headers: { 
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
         body: JSON.stringify(safe),
       });
+
+      if (response.status === 401) {
+        logout();
+        return;
+      }
 
       await fetchCustomers();
       setEditModalOpen(false);
@@ -182,10 +189,16 @@ export default function App() {
     if (!window.confirm("Delete this customer?")) return;
 
     try {
-      await fetch(`${API_BASE}/api/customers/${id}`, { 
+      const response = await fetch(`${API_BASE}/api/customers/${id}`, { 
         method: "DELETE",
         headers: getAuthHeaders()
       });
+      
+      if (response.status === 401) {
+        logout();
+        return;
+      }
+      
       await fetchCustomers();
       setEditModalOpen(false);
     } catch (err) {
@@ -240,13 +253,49 @@ export default function App() {
   // -------------------------------------------------------------
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", textAlign: "center" }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ margin: 0 }}>QR Code Generator</h1>
+      {/* Header with user info and logout */}
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center",
+        marginBottom: 20,
+        padding: "10px 20px",
+        background: "#f7fafc",
+        borderRadius: 8
+      }}>
         <div>
-          <span style={{ marginRight: 10 }}>Welcome, {user.first_name}</span>
-          <button onClick={logout} style={{ padding: '6px 12px', cursor: 'pointer' }}>Logout</button>
+          <span style={{ fontWeight: "bold", color: "#2d3748" }}>
+            {user?.first_name} {user?.last_name}
+          </span>
+          <span style={{ 
+            marginLeft: 10, 
+            padding: "2px 8px", 
+            background: user?.role === 'admin' ? '#c53030' : '#2c5282',
+            color: 'white',
+            borderRadius: 4,
+            fontSize: 12,
+            textTransform: 'uppercase'
+          }}>
+            {user?.role}
+          </span>
         </div>
+        <button
+          onClick={logout}
+          style={{
+            padding: "6px 12px",
+            background: "#e53e3e",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 13
+          }}
+        >
+          Logout
+        </button>
       </div>
+
+      <h1>QR Code Generator</h1>
 
       {/* FORM */}
       <div style={{ marginBottom: 20 }}>
@@ -369,24 +418,22 @@ export default function App() {
       </div>
 
       {/* CUSTOMER LIST */}
-      <table style={{ width: "95%", margin: "0 auto", borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", margin: "0 auto", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           <tr style={{ background: "#f2f2f2" }}>
-            <th style={thStyle}>Company</th>
-            <th style={thStyle}>First</th>
-            <th style={thStyle}>Last</th>
-            <th style={thStyle}>Email</th>
-            <th style={thStyle}>Phone</th>
-            <th style={thStyle}>QR URL</th>
-            <th style={thStyle}>QR Name</th>
-            <th style={thStyle}>Actions</th>
+            <th style={{ ...thStyle, width: "20%" }}>Company</th>
+            <th style={{ ...thStyle, width: "15%" }}>First</th>
+            <th style={{ ...thStyle, width: "15%" }}>Last</th>
+            <th style={{ ...thStyle, width: "25%" }}>QR URL</th>
+            <th style={{ ...thStyle, width: "12%" }}>QR Name</th>
+            <th style={{ ...thStyle, width: "13%" }}>Actions</th>
           </tr>
         </thead>
 
         <tbody>
           {pageData.map((cust) => (
             <tr key={cust.id}>
-              <td style={tdStyle}>
+              <td style={{ ...tdStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 <span 
                   onClick={() => handleShowCompany(cust)}
                   style={{ color: "#3e53f6", cursor: "pointer", textDecoration: "underline" }}
@@ -394,22 +441,42 @@ export default function App() {
                   {cust.company_name || cust.first_name}
                 </span>
               </td>
-              <td style={tdStyle}>{cust.first_name}</td>
-              <td style={tdStyle}>{cust.last_name}</td>
-              <td style={tdStyle}>{cust.email}</td>
-              <td style={tdStyle}>{cust.phone_number}</td>
-              <td style={tdStyle}>{cust.qr_url}</td>
-              <td style={tdStyle}>{cust.qr_label || '-'}</td>
+              <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{cust.first_name}</td>
+              <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{cust.last_name}</td>
+              <td style={{ ...tdStyle, overflow: "hidden", textOverflow: "ellipsis" }}>{cust.qr_url}</td>
+              <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{cust.qr_label || '-'}</td>
 
-              <td style={tdStyle}>
+              <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
                 <button
                   onClick={() => handleEdit(cust)}
-                  style={{ marginRight: 5 }}
+                  style={{ 
+                    marginRight: 5,
+                    padding: "4px 10px",
+                    background: "#3e53f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 12
+                  }}
                 >
                   Edit
                 </button>
 
-                <button onClick={() => handleShowQR(cust)}>QR</button>
+                <button 
+                  onClick={() => handleShowQR(cust)}
+                  style={{ 
+                    padding: "4px 10px",
+                    background: "#28a745",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    fontSize: 12
+                  }}
+                >
+                  QR
+                </button>
               </td>
             </tr>
           ))}
@@ -469,6 +536,30 @@ export default function App() {
       )}
     </div>
   );
+}
+
+// Main App - handles auth check
+export default function App() {
+  const { loading, isAuthenticated } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return <AppContent />;
 }
 
 // TABLE STYLES

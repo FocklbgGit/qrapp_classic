@@ -148,13 +148,15 @@ const closeButtonStyle = {
   background: "#dc3545",
   color: "#fff",
   border: "none",
-  borderRadius: "50%",
-  width: 24,
-  height: 24,
+  borderRadius: 6,
+  width: 36,
+  height: 36,
   cursor: "pointer",
-  fontSize: 14,
-  lineHeight: "24px",
-  textAlign: "center",
+  fontSize: 18,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  lineHeight: 1,
 };
 
 const inputStyle = {
@@ -163,6 +165,7 @@ const inputStyle = {
   marginBottom: 10,
   borderRadius: 5,
   border: "1px solid #ccc",
+  boxSizing: "border-box",
 };
 
 const btnStyle = {
